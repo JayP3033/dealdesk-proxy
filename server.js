@@ -8,21 +8,19 @@ const KEY  = process.env.ANTHROPIC_API_KEY;
 // ── Middleware ──────────────────────────────────────────────
 app.use(express.json({ limit: '1mb' }));
 
-// Allow requests from GitHub Pages and local dev
-const ALLOWED = [
-  /^https:\/\/[\w-]+\.github\.io$/,   // any github.io subdomain
-  /^http:\/\/localhost(:\d+)?$/,       // local dev
-  /^file:\/\//                         // local file open
-];
-
+// Allow any github.io domain, localhost, file://
 app.use(cors({
   origin(origin, cb) {
-    // allow requests with no origin (curl, Postman, file://)
     if (!origin) return cb(null, true);
-    if (ALLOWED.some(r => r.test(origin))) return cb(null, true);
-    cb(new Error('Not allowed by CORS: ' + origin));
+    if (
+      origin.endsWith('.github.io') ||
+      origin.startsWith('http://localhost') ||
+      origin.startsWith('https://localhost')
+    ) return cb(null, true);
+    cb(new Error('CORS blocked: ' + origin));
   },
-  methods: ['POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
 }));
 
 // ── Health check ────────────────────────────────────────────
@@ -38,7 +36,6 @@ app.post('/api/chat', async (req, res) => {
 
   const { model, max_tokens, messages, system } = req.body;
 
-  // Basic validation
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages array required.' });
   }
@@ -54,9 +51,9 @@ app.post('/api/chat', async (req, res) => {
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
       method:  'POST',
       headers: {
-        'Content-Type':    'application/json',
+        'Content-Type':      'application/json',
         'anthropic-version': '2023-06-01',
-        'x-api-key':       KEY,
+        'x-api-key':         KEY,
       },
       body: JSON.stringify(body),
     });
